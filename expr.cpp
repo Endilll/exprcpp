@@ -31,6 +31,7 @@
 #include <llvm/Option/Option.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/DynamicLibrary.h>
+#include <llvm/Support/Host.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/TargetSelect.h>
@@ -233,7 +234,7 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
                 return v.getName().data();
             }
         }
-        throw "No user functions found";
+        // throw "No user functions found";
     }()};
 
     auto jit{ExitOnErr(llvm::orc::LLJITBuilder().create())};
