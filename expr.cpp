@@ -143,9 +143,9 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
 
     llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> vfs{
         new llvm::vfs::InMemoryFileSystem{}};
-    vfs->addFile("Test.cxx", std::time(nullptr), llvm::MemoryBuffer::getMemBuffer(data->source_code));
+    vfs->addFile("expr.cpp", std::time(nullptr), llvm::MemoryBuffer::getMemBuffer(data->source_code));
 
-    clang::driver::Driver driver(path, triple.str(), diags, vfs);
+    clang::driver::Driver driver{path, triple.str(), diags, vfs};
     driver.setCheckInputsExist(false);
 
     // FIXME: This is a hack to try to force the driver to do something we can
@@ -197,9 +197,12 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
 
     // Create the compilers actual diagnostics engine.
     clang.createDiagnostics();
-    if (!clang.hasDiagnostics())
+    std::cout << 31 << std::endl;
+    if (!clang.hasDiagnostics()) {
+        std::cout << 32 << std::endl;
         vsapi->setError(out, "Can't create diagnostics engine");
         return;
+    }
 
     // Infer the builtin include path if unspecified.
     if (clang.getHeaderSearchOpts().UseBuiltinIncludes &&
@@ -208,7 +211,7 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
         clang::CompilerInvocation::GetResourcesPath(nullptr, main_addr);
 
     // Create and execute the frontend to generate an LLVM bitcode module.
-    std::unique_ptr<clang::CodeGenAction> act{new clang::EmitLLVMOnlyAction()};
+    std::unique_ptr<clang::CodeGenAction> act{new clang::EmitLLVMOnlyAction{}};
     if (!clang.ExecuteAction(*act)) {
         vsapi->setError(out, "Can't emit LLVM bitcode");
         return;
@@ -233,15 +236,6 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
         throw "No user functions found";
     }()};
 
-    // for (auto& v: *module) {
-    //     if (v.hasName()) {
-    //     printf("%s   ", v.getName().data());
-    //     } else {
-    //     printf("Unnamed function\n");
-    //     }
-    // }
-    // printf("\n");
-
     auto jit{ExitOnErr(llvm::orc::LLJITBuilder().create())};
 
     auto psg{llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
@@ -256,15 +250,7 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
     auto ts_module{llvm::orc::ThreadSafeModule{std::move(module), std::move(ctx)}};
     ExitOnErr(jit->addIRModule(std::move(ts_module)));
 
-    // printf("***\nEndill main: print symbols\n");
-    // for (auto& v: J->getMainJITDylib().Symbols) {
-    //   printf("%s   ", (*v.first).data());
-    // }
-    // printf("\n***\n");
-
     auto s{ExitOnErr(jit->lookupLinkerMangled(jit->getMainJITDylib(), func_name))};
-    // auto Main = (int (*)(...))r.getAddress();
-    // auto add = static_cast<std::function<int(int, int)>>(s.getAddress());
     data->user_func = reinterpret_cast<int (*)(int, int)>(s.getAddress());
     data->jit = std::move(jit);
 
