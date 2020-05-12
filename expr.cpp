@@ -214,9 +214,9 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
         }
     }()};
 
-    // Add generator to JIT to resolve symbols from C and C++ runtimes
-    // referenced in user code (i.e. printf), and prevent any loaded libraries
-    // from unloading.
+    // Add generator to JIT to resolve external symbols referenced in user code
+    // (i.e. printf) using C and C++ runtimes loaded into current process, and
+    // prevent any loaded libraries from unloading.
     auto psg{llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
         jit->getDataLayout().getGlobalPrefix())};
     if (!psg) {
