@@ -257,7 +257,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func,
                                             VSPlugin* plugin)
 {
   config_func("com.endill.ExprCpp", "endill", "C++-based Expr",
-              VAPOURSYNTH_API_VERSION,1, plugin);
+              VAPOURSYNTH_API_VERSION, 1, plugin);
   register_func("expr_cpp", "clip_a:clip;clip_b:clip;code:data",
                 exprcpp_create, nullptr, plugin);
   return;
