@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include <clang/Basic/Diagnostic.h>
 #include <clang/Basic/DiagnosticFrontend.h>
@@ -34,10 +35,14 @@
 
 #include <vapoursynth/VapourSynth.h>
 
+using namespace std::literals;
+
+static constexpr auto predefined_includes{"#include <cstdint>\n\n"sv};
+
 struct Exprcpp_data {
     VSNodeRef* src_a_node;
     VSNodeRef* src_b_node;
-    std::string source_code;
+    std::string source_code{predefined_includes};
     const VSVideoInfo* src_a_info;
     const VSVideoInfo* src_b_info;
     std::function<int(int, int)> user_func;
@@ -110,8 +115,8 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
                                  VSCore* core, const VSAPI* vsapi)
 {
     const auto data{new Exprcpp_data{vsapi->propGetNode(in, "clip_a", 0, 0),
-                                     vsapi->propGetNode(in, "clip_b", 0, 0),
-                                     vsapi->propGetData(in, "code",   0, 0)}};
+                                     vsapi->propGetNode(in, "clip_b", 0, 0)}};
+    data->source_code += vsapi->propGetData(in, "code", 0, 0);
     data->src_a_info = vsapi->getVideoInfo(data->src_a_node);
     data->src_b_info = vsapi->getVideoInfo(data->src_b_node);
 
