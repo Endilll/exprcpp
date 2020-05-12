@@ -118,10 +118,15 @@ static void VS_CC exprcpp_create(const VSMap* in, VSMap* out, void* userData,
 
     // LLVM stuff
 
-    // Load user code into in-memory virtual FS.
-    llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> vfs{
+    // Overlay real FS with in-memory one, and load user code there.
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> real_fs{
+        llvm::vfs::getRealFileSystem()};
+    llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> mem_vfs{
         new llvm::vfs::InMemoryFileSystem{}};
-    vfs->addFile("expr.cpp", std::time(nullptr),
+    llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> vfs{
+        new llvm::vfs::OverlayFileSystem{llvm::vfs::getRealFileSystem()}};
+    vfs->pushOverlay(mem_vfs);
+    mem_vfs->addFile("expr.cpp", std::time(nullptr),
                  llvm::MemoryBuffer::getMemBuffer(data->source_code));
 
     // Create diagnostics engine for driver.
