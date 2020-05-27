@@ -178,6 +178,18 @@ const VSFrameRef *VS_CC get_frame(
             const long pixel_count{vsapi->getFrameWidth(dst_frame, plane)
                                    * vsapi->getFrameHeight(dst_frame, plane)};
 
+            for (gsl::index i{0}; i != ssize(src_frames); ++i) {
+                const long src_pixel_count{
+                    vsapi->getFrameWidth(src_frames[i], plane)
+                    * vsapi->getFrameHeight(src_frames[i], plane)};
+                if (src_pixel_count != pixel_count) {
+                    throw std::runtime_error{
+                        "Frame "s + std::to_string(n) + " of input clip #"s
+                        + std::to_string(i) + " has different number of pixels"s
+                        "than output frame"s};
+                }
+            }
+
             auto data_ptrs{[&]() {
                 std::vector<void*> data_ptrs{
                     vsapi->getWritePtr(dst_frame, plane)};
