@@ -20,7 +20,7 @@ class Jit_src_builder {
 public:
     static constexpr auto entry_func_ns{"exprcpp"};
     static constexpr auto entry_func_name{"run"};
-    using entry_func_ptr = void (*)(long, int, int, void**);
+    using entry_func_ptr = void (*)(long, void**);
     using entry_func_type =
         std::function<std::remove_pointer_t<entry_func_ptr>>;
 

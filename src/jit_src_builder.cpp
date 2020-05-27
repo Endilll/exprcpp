@@ -32,22 +32,21 @@ std::string Jit_src_builder::create_loop_func()
 R"EOS(
 
 namespace exprcpp {
-template<typename Dst_ptr, typename... Src_ptrs>
-void run_loop(long pixel_count, std::pair<int, int> value_range, Dst_ptr dst,
-              Src_ptrs... srcs)
+template<typename Dst_ptr, typename... Src_ptrs,
+         typename Dst_t = std::remove_pointer_t<Dst_ptr>>
+void run_loop(long pixel_count, std::pair<Dst_t, Dst_t> value_range,
+              Dst_ptr dst, Src_ptrs... srcs)
 {
-    using Dst_t = std::remove_pointer_t<Dst_ptr>;
     using User_t = decltype(USER_FUNC_NAME(srcs[0]...));
 
     for (long i{0}; i < pixel_count; ++i) {
         if constexpr (!std::is_same_v<Dst_t, User_t>
                       && std::is_integral_v<Dst_t>
                       && std::is_integral_v<User_t>
-                      && std::numeric_limits<User_t>::max()
-                         >= std::numeric_limits<Dst_t>::max()) {
-            dst[i] = static_cast<Dst_t>(
-                std::clamp<User_t>(USER_FUNC_NAME(srcs[i]...),
-                                   value_range.first, value_range.second));
+                      && std::numeric_limits<Dst_t>::max()
+                         < std::numeric_limits<User_t>::max()) {
+            dst[i] = std::clamp<User_t>(USER_FUNC_NAME(srcs[i]...),
+                                        value_range.first, value_range.second);
         } else {
             dst[i] = USER_FUNC_NAME(srcs[i]...);
         }
@@ -110,8 +109,7 @@ std::string Jit_src_builder::create_entry_func()
     entry_func +=
 "\nnamespace "s + entry_func_ns + " {\n"s;
     entry_func +=
-"void "s + entry_func_name +
-    "(long pixel_count, int value_min, int value_max, void** data_ptrs)\n"s
+"void "s + entry_func_name + "(long pixel_count, void** data_ptrs)\n"s
 "{\n"s;
     for (gsl::index i{0}; i < ssize(ptrs); ++i) {
         const std::string name{ptrs[i].first};
@@ -122,7 +120,8 @@ std::string Jit_src_builder::create_entry_func()
                                               "data_ptrs["s + index + "])};\n"s;
     }
     entry_func +=
-"    exprcpp::run_loop(pixel_count, {value_min, value_max}"s;
+"    exprcpp::run_loop(pixel_count, {0, "s
+               + std::to_string((1 << this->dst_fmt->bitsPerSample) - 1) + "}"s;
     for (const auto& [name, _]: ptrs) {
         entry_func += ", "s + name;
     }

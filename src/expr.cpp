@@ -178,14 +178,6 @@ const VSFrameRef *VS_CC get_frame(
             const long pixel_count{vsapi->getFrameWidth(dst_frame, plane)
                                    * vsapi->getFrameHeight(dst_frame, plane)};
 
-            auto value_range{[&]() -> const std::pair<int, int> {
-                if (data->dst_info->format->sampleType == stInteger) {
-                    return {0,
-                            (1 << data->dst_info->format->bitsPerSample) - 1};
-                }
-                return {0, 0};
-            }()};
-
             auto data_ptrs{[&]() {
                 std::vector<void*> data_ptrs{
                     vsapi->getWritePtr(dst_frame, plane)};
@@ -197,8 +189,7 @@ const VSFrameRef *VS_CC get_frame(
                 return data_ptrs;
             }()};
 
-            jit_func(pixel_count, value_range.first, value_range.second,
-                     data_ptrs.data());
+            jit_func(pixel_count, data_ptrs.data());
         }
 
         return dst_frame;
