@@ -1,6 +1,7 @@
 #include "exprcpp/ast_action.h"
 #include "exprcpp/jit_src_builder.h"
 #include "exprcpp/support.h"
+#include <iterator>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -170,7 +171,7 @@ const VSFrameRef *VS_CC get_frame(
                 copy_src_planes.data(), src_frames[0], core);
         }()};
 
-        for (gsl::index plane{0}; plane < data->dst_info->format->numPlanes;
+        for (gsl::index plane{0}; plane != data->dst_info->format->numPlanes;
                                                                       ++plane) {
             const auto jit_func{data->jit_funcs[plane]};
             if (!jit_func) { continue; }
@@ -370,7 +371,7 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
     auto data{std::make_unique<Exprcpp_data>()};
     std::vector<const VSFormat*> src_fmts;
     int err{0};
-    for (gsl::index i{0}; i < vsapi->propNumElements(in, "clips"); ++i) {
+    for (gsl::index i{0}; i != vsapi->propNumElements(in, "clips"); ++i) {
         VSNodeRef* const node{vsapi->propGetNode(in, "clips", i, &err)};
         if (err) {
             throw std::runtime_error{"Failed to get one of the inputs"s};
@@ -414,7 +415,7 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
     auto jit{check_result(llvm::orc::LLJITBuilder().create(),
                           "Failed to create JIT"s)};
 
-    for (gsl::index i{0}; i < data->dst_info->format->numPlanes; ++i) {
+    for (gsl::index i{0}; i != data->dst_info->format->numPlanes; ++i) {
         const char* user_code_c{vsapi->propGetData(in, "code", i, &err)};
         if (err) {
             data->jit_funcs.push_back(

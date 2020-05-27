@@ -100,7 +100,7 @@ std::string Jit_src_builder::create_entry_func()
 
     std::vector<std::pair<std::string, std::string>> ptrs{
         {"dst"s, to_ptr_string(*this->dst_fmt, /* immutable */ false)}};
-    for (gsl::index i{0}; i < ssize(this->src_fmts); ++i) {
+    for (gsl::index i{0}; i != ssize(this->src_fmts); ++i) {
         ptrs.emplace_back("src"s + std::to_string(i),
                           to_ptr_string(*this->src_fmts[i]));
     }
@@ -111,7 +111,7 @@ std::string Jit_src_builder::create_entry_func()
     entry_func +=
 "void "s + entry_func_name + "(long pixel_count, void** data_ptrs)\n"s
 "{\n"s;
-    for (gsl::index i{0}; i < ssize(ptrs); ++i) {
+    for (gsl::index i{0}; i != ssize(ptrs); ++i) {
         const std::string name{ptrs[i].first};
         const std::string type{ptrs[i].second};
         const std::string index{std::to_string(i)};
