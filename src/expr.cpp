@@ -223,7 +223,9 @@ void VS_CC free(void* instance_data, VSCore*, const VSAPI* vsapi)
 
 Jit_src_builder::entry_func_type process_source(
     llvm::orc::LLJIT& jit, Jit_src_builder& source_builder,
-    Dump_info dump_info, gsl::index plane)
+    const Dump_info dump_info, const gsl::index plane,
+    const std::vector<const char*>& cxxflags = {"-O3", "-std=c++17",
+    "-march=native"})
 {
     llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> mem_vfs{
         new llvm::vfs::InMemoryFileSystem{}};
@@ -244,13 +246,13 @@ Jit_src_builder::entry_func_type process_source(
         new clang::DiagnosticIDs()};
     clang::DiagnosticsEngine diags{diag_id, diag_opts.get(), diag_client};
 
-    auto build_compiler_invocation{[&diags, &vfs](const std::string& file_name){
+    auto build_compiler_invocation{[&](const std::string& file_name) {
         clang::driver::Driver driver{"clang++", llvm::sys::getProcessTriple(),
                                      diags, vfs};
 
-        llvm::SmallVector<const char*, 6> args{
-            "clang++", file_name.c_str(), "-fsyntax-only", "-O3", "-std=c++17",
-            "-march=native"};
+        llvm::SmallVector<const char*, 20> args{
+            "clang++", file_name.c_str(), "-fsyntax-only"};
+        args.append(cxxflags.cbegin(), cxxflags.cend());
         std::unique_ptr<clang::driver::Compilation> compilation{
             driver.BuildCompilation(args)};
         if (!compilation) {
@@ -409,6 +411,20 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
 
     Dump_info dump_info{*vsapi, *in};
 
+    bool user_cxxflags_present{false};
+    auto user_cxxflags{[&]() {
+        std::vector<const char*> user_cxxflags;
+        int64_t user_cxxflags_count{vsapi->propNumElements(in, "cxxflags")};
+        if (user_cxxflags_count == -1) { return user_cxxflags; }
+        for (gsl::index i{0}; i != user_cxxflags_count; ++i) {
+            const char* cxxflag{vsapi->propGetData(in, "cxxflags", i, &err)};
+            if (err) { throw std::runtime_error{"Failed to read cxxflag"s}; }
+            user_cxxflags.push_back(cxxflag);
+        }
+        user_cxxflags_present = true;
+        return user_cxxflags;
+    }()};
+
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
@@ -432,8 +448,14 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
         }
         Jit_src_builder source_builder{source_builder_common};
         source_builder.user_code(user_code);
-        data->jit_funcs.push_back(process_source(*jit, source_builder,
-                                                 dump_info, i));
+        auto jit_func{[&]() {
+            if (user_cxxflags_present) {
+                return process_source(*jit, source_builder, dump_info, i,
+                                      user_cxxflags);
+            }
+            return process_source(*jit, source_builder, dump_info, i);
+        }()};
+        data->jit_funcs.push_back(jit_func);
         data->dst_init.push_back({nullptr, i});
     }
 
@@ -453,8 +475,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func,
     config_func("org.endill.expr", "expr", "C++-based Expr",
                 VAPOURSYNTH_API_VERSION, 1, plugin);
     register_func("expr_cpp", "clips:clip[];code:data[];format:int:opt;"
-                              "dump_path:data:opt;dump_source:int:opt;"
-                              "dump_bitcode:int:opt;dump_binary:int:opt;",
+                              "cxxflags:data[]:opt:empty;dump_path:data:opt;"
+                              "dump_source:int:opt;dump_bitcode:int:opt;"
+                              "dump_binary:int:opt",
                   exprcpp::create, nullptr, plugin);
     return;
 }

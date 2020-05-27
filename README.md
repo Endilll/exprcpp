@@ -28,6 +28,7 @@ Currently ExprCpp mimics Expr user interface to the extent possible:
 * `code: Sequence[str]` — user code for each corresponding plane. As with Expr, empty string means copying, and no string at all means using the last one. See details in the next section.
 * `format: Optional[VSFormat]` — output format. Defaults to the first input clip's format.
 Debug options:
+* `cxxflags: Optional[Sequence[str]]` — override optional flags supplied to compiler. Can be an empty sequence. Defaults are `("-O3", "-std=C++17", "-march=native")`.
 * `dump_path: Optional[str]` — folder to place dumps to. Default to currend working directory.
 * `dump_source: bool = false` — dump full source that goes to JIT.
 * `dump_bitcode: bool = false` — dump LLVM IR bitcode outputted by Clang frontend. Use `llvm-dis` to get readable LLVM IR source.
@@ -98,11 +99,10 @@ Notes on CMake arguments:
 5. Add `-DLLVM_TARGETS_TO_BUILD=X86` to limit range of LLVM targets to just x86 (includes x86_64).
 
 ## Future Development
-1. Add more checks.
-2. Allow keeping C++ code in a separate file, specifying just function names in Python code.
-3. C++20 support.
-4. FP16 support.
-5. STL support.
+1. Allow keeping C++ code in a separate file, specifying just function names in Python code.
+2. Migrate to C++20.
+3. FP16 support.
+4. STL support.
 
 ## Feedback
 Thank you for getting this far. User feedback is what I'm always lacking, so feel free to join [this Telegram chat](https://t.me/vspreview_chat) to contact me on anything. Feedback could also make future plans become a reality sooner.
