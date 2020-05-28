@@ -454,7 +454,6 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
 
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
-    llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
     auto jit{check_result(llvm::orc::LLJITBuilder().create(),
                           "Failed to create JIT"s)};
 
