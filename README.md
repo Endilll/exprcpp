@@ -2,6 +2,12 @@
 Same as `std.Expr()`, but takes C++ functions instead of MaskTools RPN expressions.
 
 ## Example
+The following examples yield the same results as
+`clip = core.std.Expr((clip_a, clip_b), 'x y - abs 4 > x y * x x * ?')`
+assuming both sources are 8-bit.
+
+### Inline mode
+Inline mode is the same as with Expr.
 ```
 user_func = '''
 #include <cmath>
@@ -17,18 +23,36 @@ uint16_t func(uint8_t x, uint8_t y)
 '''
 clip = core.expr.expr_cpp((clip_a, clip_b), (user_func,))
 ```
-yields the same result as
-`clip = core.std.Expr((clip_a, clip_b), 'x y - abs 4 > x y * x x * ?')`
-assuming both sources are 8-bit.
+
+### Separate source mode
+Separate source mode allows to place all C++ code in a separate file, picking functions by their names.
+`user.cpp`:
+```
+#include <cmath>
+
+uint16_t func(uint8_t x, uint8_t y)
+{
+    if (std::abs(x - y) > 4) {
+        return x * y;
+    } else {
+        return x * x;
+    }
+}
+```
+Vapoursynth script:
+```
+clip = core.expr.expr_cpp((b1, b2), ('func',), source_path='/path/to/user.cpp')
+```
 
 ## Usage
 ### `expr_cpp()`
 Currently ExprCpp mimics Expr user interface to the extent possible:
 * `clips: Sequence[VideoNode]` — input clips.
-* `code: Sequence[str]` — user code for each corresponding plane. As with Expr, empty string means copying, and no string at all means using the last one. See details in the next section.
+* `code: Sequence[str]` — user code (inline mode) or user function name (separate source mode) for each corresponding plane. As with Expr, empty string means copying, and no string at all means using the last one. See details in the next section.
 * `format: Optional[VSFormat]` — output format. Defaults to the first input clip's format.
+* `source_path: Optional[str]` — path to file with user code. Enabled separate source mode.
 Debug options:
-* `cxxflags: Optional[Sequence[str]]` — override optional flags supplied to compiler. Can be an empty sequence. Defaults are `("-O3", "-std=C++17", "-march=native")`.
+* `cxxflags: Optional[Sequence[str]]` — override optional flags supplied to compiler. Can be an empty sequence. Defaults are `("-std=C++17", "-O3", "-march=native")`. They're parsed by `clang++` driver even on Windows, so `cl` flags won't work.
 * `dump_path: Optional[str]` — folder to place dumps to. Default to currend working directory.
 * `dump_source: bool = false` — dump full source that goes to JIT.
 * `dump_bitcode: bool = false` — dump LLVM IR bitcode outputted by Clang frontend. Use `llvm-dis` to get readable LLVM IR source.
@@ -36,10 +60,11 @@ Debug options:
 
 ### User code
 Requirements:
-1. Exactly one function (or overload set) in global namespace.
-2. With signature compatible (in terms of C++) with input clips and output format.
+1. Valid C++ code.
+2. (for inline mode) Exactly one function (or overload set) in global namespace.
+3. With signature compatible (in terms of C++) with input clips and output format.
 
-Name doesn't matter.
+Name doesn't matter for the purpose of evaluation. It's used only for naming dumps, if they're requested.
 Every piece of code is separated from others in runtime.
 
 Restrictions:
@@ -55,12 +80,14 @@ Things to keep in mind:
 4. Unlike Expr, ExprCpp doesn't require input clips to have constant dimensions, but it still requires dimensions of input clips to match on every processed frame.
 
 Usage tips:
-1. If you need to split your processing into multiple functions, place additional ones into namespace. Common choices are `details`, `impl` or even unnamed, but not `exprcpp` — this one is reserved.
-2. Use overloading or templates to generalize your functions for different outputs.
+1. You don't have to include `<cstdint>` to get access to `uint*_t` types — it's included by default.
+2. (for inline mode) If you need to split your processing into multiple functions, place additional ones into namespace. Common choices are `details`, `impl` or even unnamed, but stay out of reserved namespaces.
+3. Use overloading or templates to generalize your functions for different outputs.
 
-Tips to achieve best performance:
-1. Avoid conversions. Take inputs using clip format's native type, mind your return type (also see (2) above).
-2. Don't be clever. The better optimizer "understands" your code, the better output it can produce.
+Tips to boost performance:
+1. Measure. Intuition is among your worst enemies.
+2. Avoid conversions. Take inputs using clip format's native type, mind your return type (also see (2) above).
+3. Don't be clever. The better optimizer "understands" your code, the better output it can produce.
 A bit of testing I've done using the example suggests that ExprCpp can be on par with Expr from performance standpoint.
 
 ## Building
@@ -99,10 +126,10 @@ Notes on CMake arguments:
 5. Add `-DLLVM_TARGETS_TO_BUILD=X86` to limit range of LLVM targets to just x86 (includes x86_64).
 
 ## Future Development
-1. Allow keeping C++ code in a separate file, specifying just function names in Python code.
-2. Migrate to C++20.
-3. FP16 support.
-4. STL support.
+1. Migrate to C++20.
+2. FP16 support.
+3. STL support.
+4. Look into GPU acceleration.
 
 ## Feedback
 Thank you for getting this far. User feedback is what I'm always lacking, so feel free to join [this Telegram chat](https://t.me/vspreview_chat) to contact me on anything. Feedback could also make future plans become a reality sooner.

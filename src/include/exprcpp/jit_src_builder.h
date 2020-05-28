@@ -2,6 +2,7 @@
 
 #include <vapoursynth/VapourSynth.h>
 
+#include <filesystem>
 #include <functional>
 #include <set>
 #include <string>
@@ -34,6 +35,7 @@ public:
 
     const std::string& user_code();
     void user_code(const std::string& user_code);
+    void user_code(const std::filesystem::path& path);
 
     std::string full_source();
 };

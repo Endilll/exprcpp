@@ -4,6 +4,8 @@
 
 #include <gsl/gsl>
 
+#include <fstream>
+#include <iterator>
 #include <numeric>
 
 using namespace std::literals;
@@ -140,6 +142,12 @@ const std::string& Jit_src_builder::user_code() { return user_code_; }
 void Jit_src_builder::user_code(const std::string& user_code)
 {
     user_code_ = builtin_includes + user_code;
+}
+
+void Jit_src_builder::user_code(const std::filesystem::path& path)
+{
+    std::ifstream ifs{path};
+    user_code_ = {std::istreambuf_iterator<char>{ifs}, {}};
 }
 
 std::string Jit_src_builder::full_source()

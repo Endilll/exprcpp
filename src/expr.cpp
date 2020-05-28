@@ -222,7 +222,7 @@ void VS_CC free(void* instance_data, VSCore*, const VSAPI* vsapi)
 }
 
 Jit_src_builder::entry_func_type process_source(
-    llvm::orc::LLJIT& jit, Jit_src_builder& source_builder,
+    llvm::orc::LLJIT& jit, Jit_src_builder& src_builder,
     const Dump_info dump_info, const gsl::index plane,
     const std::vector<const char*>& cxxflags = {"-O3", "-std=c++17",
     "-march=native"})
@@ -232,9 +232,6 @@ Jit_src_builder::entry_func_type process_source(
     llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> vfs{
         new llvm::vfs::OverlayFileSystem{mem_vfs}};
     vfs->pushOverlay(llvm::vfs::getRealFileSystem());
-    mem_vfs->addFile(
-        "expr.cpp", std::time(nullptr),
-        llvm::MemoryBuffer::getMemBuffer(source_builder.user_code()));
 
     llvm::raw_os_ostream llvm_cout{std::cout};
 
@@ -274,7 +271,6 @@ Jit_src_builder::entry_func_type process_source(
     }};
 
     clang::CompilerInstance ci{};
-    ci.setInvocation(build_compiler_invocation("expr.cpp"s));
     ci.createFileManager(vfs);
     if (!ci.hasFileManager()) {
         throw std::runtime_error{
@@ -292,21 +288,29 @@ Jit_src_builder::entry_func_type process_source(
         }
     }};
 
-    std::string user_func_name{};
-    {
-        std::string _;
-        Name_extractor_action name_action{user_func_name, _};
-        execute_action(name_action);
-    }
-    if (user_func_name.empty()) {
-        throw std::runtime_error{"User function not found"s};
+    if (src_builder.user_func_name.empty()) {
+        mem_vfs->addFile(
+            "expr.cpp", std::time(nullptr),
+            llvm::MemoryBuffer::getMemBuffer(src_builder.user_code()));
+        ci.setInvocation(build_compiler_invocation("expr.cpp"s));
+
+        std::string user_func_name{};
+        {
+            std::string _;
+            Name_extractor_action name_action{user_func_name, _};
+            execute_action(name_action);
+        }
+        if (user_func_name.empty()) {
+            throw std::runtime_error{"User function not found"s};
+        }
+        src_builder.user_func_name = user_func_name;
     }
 
-    source_builder.user_func_name = user_func_name;
-    std::string jit_source{source_builder.full_source()};
+    std::string jit_source{src_builder.full_source()};
 
     if (dump_info.dump_source()) {
-        std::ofstream ofs{dump_info.dump_path / (user_func_name + ".cpp"s)};
+        std::ofstream ofs{dump_info.dump_path
+                          / (src_builder.user_func_name + "_dump.cpp"s)};
         ofs << jit_source;
     }
 
@@ -330,8 +334,9 @@ Jit_src_builder::entry_func_type process_source(
     if (!module) { throw std::runtime_error{"Failed to create module"s}; }
 
     if (dump_info.dump_bitcode()) {
-        std::ofstream ofs{dump_info.dump_path / (user_func_name + ".bc"s),
-                          std::ofstream::out | std::ofstream::binary};
+        std::ofstream ofs{dump_info.dump_path
+                          / (src_builder.user_func_name + "_dump.bc"s),
+                          std::ofstream::binary};
         llvm::raw_os_ostream os{ofs};
         WriteBitcodeToFile(*module, os);
     }
@@ -347,7 +352,7 @@ Jit_src_builder::entry_func_type process_source(
     if (dump_info.dump_binary()) {
         jit.getObjTransformLayer().setTransform(
             llvm::orc::DumpObjects{dump_info.dump_path.string(),
-                                   user_func_name});
+                                   src_builder.user_func_name});
     }
     auto disable_object_dumper{gsl::finally([&]() {
         if (dump_info.dump_binary()) {
@@ -406,8 +411,30 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
         }
     }
 
-    Jit_src_builder source_builder_common{src_fmts};
-    source_builder_common.dst_fmt = data->dst_info->format;
+    Jit_src_builder src_builder_common{src_fmts};
+    src_builder_common.dst_fmt = data->dst_info->format;
+
+    const auto source_path{[&]() {
+        const char* path_c_str{vsapi->propGetData(in, "source_path", 0, &err)};
+        if (err) { return std::filesystem::path{}; }
+        const std::filesystem::path path{path_c_str};
+
+        const auto status{std::filesystem::status(path)};
+        if (!std::filesystem::exists(status)) {
+            throw std::runtime_error{"Source file doesn't exist"s};
+        }
+        if (!std::filesystem::is_regular_file(status)
+            && !std::filesystem::is_character_file(status)
+            && !std::filesystem::is_fifo(status)
+            && !std::filesystem::is_symlink(status))
+        {
+            throw std::runtime_error{"Source file is not a file"s};
+        }
+        return path;
+    }()};
+    if (!source_path.empty()) {
+        src_builder_common.user_code(source_path);
+    }
 
     Dump_info dump_info{*vsapi, *in};
 
@@ -432,7 +459,7 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
                           "Failed to create JIT"s)};
 
     for (gsl::index i{0}; i != data->dst_info->format->numPlanes; ++i) {
-        const char* user_code_c{vsapi->propGetData(in, "code", i, &err)};
+        const char* user_code_c_str{vsapi->propGetData(in, "code", i, &err)};
         if (err) {
             data->jit_funcs.push_back(
                 data->jit_funcs[ssize(data->jit_funcs) - 1]);
@@ -440,20 +467,24 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core,
                 {data->dst_init[ssize(data->dst_init) - 1].first, i});
             continue;
         }
-        std::string user_code{user_code_c};
+        std::string user_code{user_code_c_str};
         if (user_code.empty()) {
             data->jit_funcs.emplace_back(nullptr);
             data->dst_init.push_back({data->srcs[0], i});
             continue;
         }
-        Jit_src_builder source_builder{source_builder_common};
-        source_builder.user_code(user_code);
+        Jit_src_builder src_builder{src_builder_common};
+        if (!source_path.empty()) {
+            src_builder.user_func_name = user_code;
+        } else {
+            src_builder.user_code(user_code);
+        }
         auto jit_func{[&]() {
             if (user_cxxflags_present) {
-                return process_source(*jit, source_builder, dump_info, i,
+                return process_source(*jit, src_builder, dump_info, i,
                                       user_cxxflags);
             }
-            return process_source(*jit, source_builder, dump_info, i);
+            return process_source(*jit, src_builder, dump_info, i);
         }()};
         data->jit_funcs.push_back(jit_func);
         data->dst_init.push_back({nullptr, i});
@@ -475,9 +506,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func,
     config_func("org.endill.expr", "expr", "C++-based Expr",
                 VAPOURSYNTH_API_VERSION, 1, plugin);
     register_func("expr_cpp", "clips:clip[];code:data[];format:int:opt;"
-                              "cxxflags:data[]:opt:empty;dump_path:data:opt;"
-                              "dump_source:int:opt;dump_bitcode:int:opt;"
-                              "dump_binary:int:opt",
+                              "source_path:data:opt;cxxflags:data[]:opt:empty;"
+                              "dump_path:data:opt;dump_source:int:opt;"
+                              "dump_bitcode:int:opt;dump_binary:int:opt",
                   exprcpp::create, nullptr, plugin);
     return;
 }
