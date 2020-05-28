@@ -3,9 +3,9 @@ Same as `std.Expr()`, but takes C++ functions instead of MaskTools RPN expressio
 
 ## Example
 ```
+user_func = '''
 #include <cmath>
 
-user_func = '''
 uint16_t func(uint8_t x, uint8_t y)
 {
     if (std::abs(x - y) > 4) {
@@ -66,7 +66,7 @@ A bit of testing I've done using the example suggests that ExprCpp can be on par
 ## Building
 ### Prerequsites
 * Compiler with C++17 support
-* CMake 3.16+
+* CMake 3.16.3+
 * LLVM 10+ (`llvm-10-dev`)
 * Clang 10+ (`libclang-cpp10-dev`)
 
@@ -79,7 +79,7 @@ cmake --build .
 ```
 
 ### Windows
-Windows distibution of LLVM doesn't expose C++ API nor as dynamic library neither as static one, so it's required to build it from source, and let ExprCpp to statically link with it. ExprCpp supports building as an LLVM external project to achieve this:
+Windows distibution of LLVM doesn't expose C++ API nor as dynamic library neither as static one, so it's required to build it from source, and to let ExprCpp to statically link with it. ExprCpp supports building as an LLVM external project to achieve this:
 1. Clone ExprCpp repo
 2. Clone [LLVM monorepo](https://github.com/llvm/llvm-project)
 3. Open Visual Studio Developer Console x64 and navigate to LLVM monorepo:
