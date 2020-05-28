@@ -131,6 +131,7 @@ Notes on CMake arguments:
 3. STL support.
 4. Look into GPU acceleration.
 5. Consider using `vsxx`.
+6. Consider moving to `LLVM-C` and `libClang`.
 
 ## Feedback
 Thank you for getting this far. User feedback is what I'm always lacking, so feel free to join [this Telegram chat](https://t.me/vspreview_chat) to contact me on anything. Feedback could also make future plans become a reality sooner.
