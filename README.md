@@ -130,6 +130,7 @@ Notes on CMake arguments:
 2. FP16 support.
 3. STL support.
 4. Look into GPU acceleration.
+5. Consider using `vsxx`.
 
 ## Feedback
 Thank you for getting this far. User feedback is what I'm always lacking, so feel free to join [this Telegram chat](https://t.me/vspreview_chat) to contact me on anything. Feedback could also make future plans become a reality sooner.
