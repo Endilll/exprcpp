@@ -6,34 +6,24 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_library(exprcpp SHARED)
-target_sources(exprcpp PRIVATE expr.cpp)
+set(COMPILER_WARNINGS
+    "-Wall"
+    "-Wextra"
+    "-Wpedantic"
+    "-Wshadow"
+)
 
-if (CMAKE_HOST_WIN32)
-    add_library(vapoursynth SHARED IMPORTED)
-    set_target_properties(vapoursynth PROPERTIES
-        IMPORTED_LOCATION "C:\\Program Files\\VapourSynth\\core\\vapoursynth.dll"
-        IMPORTED_IMPLIB   "C:\\Program Files\\VapourSynth\\sdk\\lib64\\vapoursynth.lib"
-    )
-    target_include_directories(vapoursynth SYSTEM INTERFACE
-        "C:\\Program Files\\VapourSynth\\sdk\\include"
-    )
-elseif (CMAKE_HOST_UNIX)
-    add_library(vapoursynth SHARED IMPORTED)
-    set_target_properties(vapoursynth PROPERTIES
-        IMPORTED_LOCATION "/usr/lib/libvapoursynth.so"
-    )
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    include(GNUInstallDirs)
+    if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+        set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
+            ${CMAKE_CURRENT_BINARY_DIR}/stage/${CMAKE_INSTALL_LIBDIR})
+    endif()
 
-    find_package(LLVM REQUIRED CONFIG)
-    message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-    message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-    target_include_directories(exprcpp PRIVATE ${LLVM_INCLUDE_DIRS})
-    target_compile_definitions(exprcpp PRIVATE ${LLVM_DEFINITIONS})
-    find_package(Clang REQUIRED CONFIG)
+    add_compile_options(${COMPILER_WARNINGS})
+    add_compile_options("-fcolor-diagnostics")
 endif()
 
-target_link_libraries(exprcpp PRIVATE
-    vapoursynth
-    LLVM
-    clang-cpp
-)
+add_subdirectory(dependencies)
+
+add_subdirectory(src)
